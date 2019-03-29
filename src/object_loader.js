@@ -54,6 +54,36 @@ Neu3D.prototype._registerObject = function(key, unit, object) {
   this.meshDict[key] = unit;
 }
 
+/**
+ * Update Bounding Box of Object
+ * @param {*} obj 
+ * @param {*} x 
+ * @param {*} y 
+ * @param {*} z 
+ */
+Neu3D.prototype.updateObjectBoundingBox = function(obj, x, y, z) {
+  if (x < obj.boundingBox.minX)
+    obj.boundingBox.minX = x;
+  if (x > obj.boundingBox.maxX)
+    obj.boundingBox.maxX = x;
+  if (y < obj.boundingBox.minY)
+    obj.boundingBox.minY = y;
+  if (y > obj.boundingBox.maxY)
+    obj.boundingBox.maxY = y;
+  if (z < obj.boundingBox.minZ)
+    obj.boundingBox.minZ = z;
+  if (z > obj.boundingBox.maxZ)
+    obj.boundingBox.maxZ = z;
+}
+
+/** TODO: Add comment
+ * @param {*} x 
+ * @param {*} y 
+ * @param {*} z 
+ */
+Neu3D.prototype.updateBoundingBox = function(x, y, z) {
+  this.updateObjectBoundingBox(this, x, y, z)
+}
 
 /** TODO: Add comment
  * @param {*} key 

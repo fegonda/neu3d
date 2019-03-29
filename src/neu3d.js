@@ -14,17 +14,7 @@ const THREE = require('../etc/three');
 
 import dat from '../etc/dat.gui';
 import '../style/neu3d.css';
-import { datGuiPresets } from './presets.js';
-
-var isOnMobile = checkOnMobile();
-
-function checkOnMobile() {
-
-  if( /Android|webOS|iPhone|iPad|iPod|BlackBerry|IEMobile|Opera Mini/i.test(navigator.userAgent) )
-    return true;
-  else
-    return false;
-}
+import './presets.js';
 
 function getAttr(obj, key, val) {
   if (key in obj)
@@ -75,9 +65,9 @@ export class Neu3D {
         }
       }
     this.settings = new PropertyManager({
+      adaptiveRendering: false,
       defaultOpacity: 0.7,
       synapseOpacity: 1.0,
-      meshOscAmp: 0.0,
       nonHighlightableOpacity: 0.1,
       lowOpacity: 0.1,
       pinOpacity: 0.9,
@@ -88,7 +78,7 @@ export class Neu3D {
       defaultSynapseRadius: 0.2,
       backgroundOpacity: 1.0,
       backgroundWireframeOpacity: 0.07,
-      neuron3d: false,
+      neuron3d: true,
       neuron3dMode: 1,
       synapseMode: true,
       meshWireframe: true,
@@ -104,9 +94,7 @@ export class Neu3D {
       pinned: false,
       highlight: false
     });
-    this.activityData = {};
-    this.it1 = {};
-    this.it2 = {};
+
     this.meshDict = new PropertyManager();
     this.uiVars = new PropertyManager({
       pinnedObjects: new Set(),
@@ -143,27 +131,23 @@ export class Neu3D {
     this.lightsHelper = this.initLights();
     this.lut = this.initLut();
     this.loadingManager = this.initLoadingManager();
+
     let controlPanelDiv = document.createElement('div');
     controlPanelDiv.id = 'vis-3d-settings';
-
     this.controlPanel = this.initControlPanel(options['datGUI']);
     controlPanelDiv.appendChild(this.controlPanel.domElement);
     this.container.appendChild(controlPanelDiv);
     
     this.container.addEventListener('click', this.onDocumentMouseClick.bind(this), false);
     this.container.addEventListener('dblclick', this.onDocumentMouseDBLClick.bind(this), false);
-    if (isOnMobile) {
-      this.container.addEventListener('taphold', this.onDocumentMouseDBLClickMobile.bind(this));
-      document.body.addEventListener('contextmenu', function () { return false; });
-    }    
     this.container.addEventListener('mouseenter', this.onDocumentMouseEnter.bind(this), false);
     this.container.addEventListener('mousemove', this.onDocumentMouseMove.bind(this), false);
     this.container.addEventListener('mouseleave', this.onDocumentMouseLeave.bind(this), false);
     this.container.addEventListener('drop', this.onDocumentDrop.bind(this), false); // drop file load swc
     this.container.addEventListener('dragover', (e) => { e.preventDefault(); e.stopPropagation()}, false); // drop file load swc
     this.container.addEventListener('dragenter', (e) => { e.preventDefault(); e.stopPropagation()} , false); // drop file load swc
-
     this.container.addEventListener('resize', this.onWindowResize.bind(this), false);
+
     this.animOpacity = {};
     this.defaultBoundingBox = { 'maxY': -100000, 'minY': 100000, 'maxX': -100000, 'minX': 100000, 'maxZ': -100000, 'minZ': 100000 };
     this.boundingBox = Object.assign({}, this.defaultBoundingBox);
@@ -269,7 +253,7 @@ export class Neu3D {
 
     // <DEBUG>: this resize event is not working right now
     this.container.addEventListener('resize',()=>{
-      // console.log('div resize');
+      console.log('div resize');
       this.onWindowResize();
     })
     window.onresize = this.onWindowResize.bind(this);
@@ -302,6 +286,8 @@ export class Neu3D {
     }
   }
 
+
+
   /**
    * Initialize Control Panel dat.GUI
    * @param {object} options 
@@ -311,8 +297,7 @@ export class Neu3D {
       autoPlace: (options.autoPlace) ? options.autoPlace : false, 
       resizable: (options.resizable) ? options.resizable : true, 
       scrollable: (options.scrollable) ? options.scrollable : true, 
-      closeOnTop: (options.closeOnTop) ? options.closeOnTop : true, 
-      load: datGuiPresets
+      closeOnTop: (options.closeOnTop) ? options.closeOnTop : true
     };
     for (let key in options){
       if (!(key in GUIOptions)){
@@ -344,7 +329,9 @@ export class Neu3D {
     _createBtn("showSettings", "fa fa-cogs", {}, "Display Settings", () => { controlPanel.__closeButton.click(); })
     // add settings
     let f_vis = controlPanel.addFolder('Settings');
+
     let f0 = f_vis.addFolder('Display Mode');
+    f0.add(this.settings, 'adaptiveRendering').name("Adaptive Rendering");
     f0.add(this.settings, 'neuron3d').name("Enable 3D Mode");
     f0.add(this.settings, 'neuron3dMode', [1, 2, 3]);
     f0.add(this.settings, 'synapseMode');
@@ -379,52 +366,19 @@ export class Neu3D {
     f2.add(this.settings, 'defaultSomaRadius');
     f2.add(this.settings, 'defaultSynapseRadius');
 
-    // let f3 = f_vis.addFolder('Animation');
-    // f3.add(this.states, 'animate');
-    // f3.add(this.settings, 'meshOscAmp', 0.0, 1.0);
-
-    controlPanel.remember(this.settings);
-    controlPanel.remember(this.settings.toneMappingPass);
-    controlPanel.remember(this.settings.bloomPass);
-    controlPanel.remember(this.settings.effectFXAA);
-    controlPanel.remember(this.settings.backrenderSSAO);
+    controlPanel.__closeButton.addEventListener('click',()=>{
+      for (let btn of document.getElementsByClassName('neu3dbutton')){
+        if (btn.style.display === "inline") {
+          btn.style.display = "none";
+        }else{
+          btn.style.display = "inline";
+        }
+      }
+    });
 
     controlPanel.open();
     
     return controlPanel;
-  }
-
-  clearActivity() {
-    clearInterval(this.it1);
-    clearInterval(this.it2);
-  }
-
-  animateActivity(activityData, t_i, interval, interpolation_interval) {
-    let ffbomesh = this;
-
-    this.activityData = activityData;
-    let t = t_i || 0; 
-    let t_max = activityData[Object.keys(activityData)[0]].length;
-    let interp = 0;
-    this.it1 = setInterval(frame, interval);
-    this.it2 = setInterval(intFrame, interpolation_interval);
-    function intFrame() {
-        interp += interpolation_interval / interval;
-        let t_current = t;
-        let t_next = t+1;
-        if (t_next == t_max)
-        t_next = 0;
-        for (let key in activityData) {
-            ffbomesh.meshDict[key]['opacity'] = activityData[key][t_current] * (1-interp) + activityData[key][t_next] * (interp);
-        }
-        ffbomesh.resetOpacity();
-    }
-    function frame() {
-        interp = 0;
-        t = t + 1;
-        if (t == t_max)
-        t = 0;
-    }
   }
 
   /** Initialize WebGL Renderer */
@@ -462,51 +416,6 @@ export class Neu3D {
     return renderer;
   }
 
-  updateResolution() {
-    
-    if (this.stats.getFPS() < 30 && this.settings.render_resolution > 0.25) {
-      this.settings.render_resolution = this.settings.render_resolution - 0.005;
-      if (this.settings.render_resolution < 0.25)
-        this.settings.render_resolution = 0.25;
-      if (this.settings.backrenderSSAO.enabled == true)
-      this.highSettingsFPS = 1.0 + (1-1/this.stats.getFPS())*this.highSettingsFPS;
-    }
-    else if (this.stats.getFPS() > 58 && this.settings.render_resolution < 2.0) {
-      this.settings.render_resolution = this.settings.render_resolution + 0.005;
-      if (this.settings.render_resolution > 2.0)
-        this.settings.render_resolution = 2.0;
-    }
-    else if (this.stats.getFPS() > 30 && this.settings.render_resolution < 1.0) {
-     this.settings.render_resolution = this.settings.render_resolution + 0.005;
-     if (this.settings.render_resolution > 1.0)
-       this.settings.render_resolution = 1.0;
-   }
-   else if (this.stats.getFPS() > 30 && this.settings.render_resolution > 1.0) {
-     this.settings.render_resolution = this.settings.render_resolution - 0.005;
-   }
-    if (this.stats.getFPS() > 58 && this.settings.render_resolution >= 1.95 && this.settings.backrenderSSAO.enabled == false && this.highSettingsFPS > 45)
-     this.settings.backrenderSSAO.enabled = true;
-    else if (this.settings.render_resolution < 1.00)
-     this.settings.backrenderSSAO.enabled = false;
-
-
-    if(this.settings.render_resolution != this.resINeed){
-      //console.log("UPDATING");
-      this.renderer.setPixelRatio(window.devicePixelRatio * this.settings.render_resolution);
-      this.resINeed = this.settings.render_resolution;
-    }
-  }
-
-  updateShaders(){
-    if(this.stats.getFPS() < 30 && this.settings.render_resolution > 0.25){
-      this.settings.effectFXAA.enabled = false;
-      this.settings.backrenderSSAO.enabled = false;
-    }else if (this.stats.getFPS() > 50 && this.settings.render_resolution >= 1.95 && this.settings.backrenderSSAO.enabled == false && this.highSettingsFPS > 45){
-      this.settings.backrenderSSAO.enabled = true;
-      this.settings.effectFXAA.enabled = true;
-    }
-  }
-
   /** Initialize Mouse Control */
   initControls() {
     let controls = new THREE.TrackballControls(this.camera, this.renderer.domElement);
@@ -528,10 +437,6 @@ export class Neu3D {
     this.renderScene.clearDepth = true;
 
     this.backrenderScene = new THREE.RenderPass(this.scenes.back, this.camera);
-    this.backrenderSSAO = new THREE.SSAOPass(this.scenes.back, this.camera, width, height);
-
-    this.effectFXAA = new THREE.ShaderPass(THREE.FXAAShader);
-    this.effectFXAA.uniforms['resolution'].value.set(1 / Math.max(width, 1440), 1 / Math.max(height, 900));
 
     this.bloomPass = new THREE.UnrealBloomPass(
       new THREE.Vector2(width, height),
@@ -541,19 +446,12 @@ export class Neu3D {
     );
 
     this.bloomPass.renderToScreen = true;
-
-    this.toneMappingPass = new THREE.AdaptiveToneMappingPass(true, width);
-    this.toneMappingPass.setMinLuminance(1. - this.settings.toneMappingPass.brightness);
-
     this.renderer.gammaInput = true;
     this.renderer.gammaOutput = true;
 
     this.composer = new THREE.EffectComposer(this.renderer);
     this.composer.addPass(this.backrenderScene);
-    this.composer.addPass(this.backrenderSSAO);
     this.composer.addPass(this.renderScene);
-    this.composer.addPass(this.effectFXAA);
-    this.composer.addPass(this.toneMappingPass);
 
     this.composer.addPass(this.bloomPass);
     this.composer.setSize(width * window.devicePixelRatio,
@@ -872,37 +770,6 @@ export class Neu3D {
       Object.assign(this.visibleBoundingBox, this.boundingBox);
   }
 
-  /**
-   * Update Bounding Box of Object
-   * @param {*} obj 
-   * @param {*} x 
-   * @param {*} y 
-   * @param {*} z 
-   */
-  updateObjectBoundingBox(obj, x, y, z) {
-    if (x < obj.boundingBox.minX)
-      obj.boundingBox.minX = x;
-    if (x > obj.boundingBox.maxX)
-      obj.boundingBox.maxX = x;
-    if (y < obj.boundingBox.minY)
-      obj.boundingBox.minY = y;
-    if (y > obj.boundingBox.maxY)
-      obj.boundingBox.maxY = y;
-    if (z < obj.boundingBox.minZ)
-      obj.boundingBox.minZ = z;
-    if (z > obj.boundingBox.maxZ)
-      obj.boundingBox.maxZ = z;
-  }
-
-  /** TODO: Add comment
-   * @param {*} x 
-   * @param {*} y 
-   * @param {*} z 
-   */
-  updateBoundingBox(x, y, z) {
-    this.updateObjectBoundingBox(this, x, y, z)
-  }
-
   animate() {
     if (this.stats){
       this.stats.begin();
@@ -910,19 +777,9 @@ export class Neu3D {
     this.controls.update(); // required if controls.enableDamping = true, or if controls.autoRotate = true
     if (this.states.mouseOver && this.dispatch.syncControls){
       this.dispatch.syncControls(this);
-      if(options['adaptive']){
+      if(this.settings.adaptiveRendering){
         this.updateResolution();
         this.updateShaders();
-        /*
-        if(this.frameCounter < 3){
-          this.frameCounter++;
-        }else{
-          this.updateResolution();
-          this.updateShaders();
-          this.frameCounter = 0;
-        }
-        */
-
       }
     }
     this.render();
@@ -1070,7 +927,6 @@ export class Neu3D {
     this.renderer.setSize(width, height);
     this.composer.setSize( width * window.devicePixelRatio,
                            height * window.devicePixelRatio);
-    this.effectFXAA.uniforms['resolution'].value.set(1 / Math.max(width, 1440), 1 / Math.max(height, 900));
     this.controls.handleResize();
     this.render();
     if (this.dispatch['resize'] !== undefined) {
@@ -1083,30 +939,16 @@ export class Neu3D {
    * Render 
    */
   render() {
-    if (this.states.highlight){
-      // do nothing
-    } else{
+    if (!this.states.highlight){
       for (let key in this.meshDict) {
-        if (this.meshDict[key].object !== undefined) {
-          let x = new Date().getTime();
-          if (this.meshDict[key]['background']) {
-            let obj = this.meshDict[key].object.children;
-            if (this.meshDict[key]['opacity'] >= 0.00){
-              obj[0].material.opacity = this.meshDict[key]['opacity'] * (this.settings.backgroundOpacity + 0.5 * this.settings.meshOscAmp * (1 + Math.sin(x * .0005)));
-            }else{
-              obj[0].material.opacity = this.settings.backgroundOpacity + 0.5 * this.settings.meshOscAmp * (1 + Math.sin(x * .0005));
-              obj[1].material.opacity = this.settings.backgroundWireframeOpacity;
-            }
-            
-            
-            obj[0].material.opacity = this.settings.backgroundOpacity + 0.5 * this.settings.meshOscAmp * (1 + Math.sin(x * .0005));
-            obj[1].material.opacity = this.settings.backgroundWireframeOpacity;
-          } else {
-            //TODO: check what this else loop does
-          }
+        if (this.meshDict[key]['background']) {
+          let obj = this.meshDict[key].object.children;
+          obj[0].material.opacity = this.settings.backgroundOpacity;
+          obj[1].material.opacity = this.settings.backgroundWireframeOpacity;
         }
       }
     }
+    
 
     /*
     * show label of mesh object when it intersects with cursor
@@ -1197,33 +1039,6 @@ export class Neu3D {
     }
   }
 
-  /** export settings */
-  export_settings() {
-    let backgroundColor = [0.15, 0.01, 0.15];
-    if (this.groups.back.children.length){
-      backgroundColor = this.groups.back.children[0].children[0].material.color.toArray();
-    }
-    if (this.settings.backgroundColor !== undefined){
-      backgroundColor = this.settings.backgroundColor;
-    }
-    let set = Object.assign({}, this.settings, {
-      lightsHelper: this.lightsHelper.export(),
-      postProcessing: {
-        fxaa: this.settings.effectFXAA.enabled,
-        ssao: this.settings.backrenderSSAO.enabled,
-        toneMappingMinLum: 1 - this.settings.toneMappingPass.brightness,
-        bloomRadius: this.settings.bloomPass.radius,
-        bloomThreshold: this.settings.bloomPass.threshold,
-        bloomStrength: this.settings.bloomPass.strength
-      },
-      backgroundColor: backgroundColor
-    });
-    delete set.effectFXAA;
-    delete set.backrenderSSAO;
-    delete set.toneMappingPass;
-    delete set.bloomPass;
-    return set;
-  }
 
   /**
    * show individual object

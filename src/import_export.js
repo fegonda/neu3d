@@ -108,4 +108,31 @@ Neu3D.prototype.import_state = function(state_metadata) {
   }
 }
 
+  /** export settings */
+  Neu3D.prototype.export_settings = function() {
+    let backgroundColor = [0.15, 0.01, 0.15];
+    if (this.groups.back.children.length){
+      backgroundColor = this.groups.back.children[0].children[0].material.color.toArray();
+    }
+    if (this.settings.backgroundColor !== undefined){
+      backgroundColor = this.settings.backgroundColor;
+    }
+    let set = Object.assign({}, this.settings, {
+      lightsHelper: this.lightsHelper.export(),
+      postProcessing: {
+        fxaa: this.settings.effectFXAA.enabled,
+        ssao: this.settings.backrenderSSAO.enabled,
+        toneMappingMinLum: 1 - this.settings.toneMappingPass.brightness,
+        bloomRadius: this.settings.bloomPass.radius,
+        bloomThreshold: this.settings.bloomPass.threshold,
+        bloomStrength: this.settings.bloomPass.strength
+      },
+      backgroundColor: backgroundColor
+    });
+    delete set.effectFXAA;
+    delete set.backrenderSSAO;
+    delete set.toneMappingPass;
+    delete set.bloomPass;
+    return set;
+  }
 export { Neu3D };
