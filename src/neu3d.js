@@ -366,16 +366,6 @@ export class Neu3D {
     f2.add(this.settings, 'defaultSomaRadius');
     f2.add(this.settings, 'defaultSynapseRadius');
 
-    controlPanel.__closeButton.addEventListener('click',()=>{
-      for (let btn of document.getElementsByClassName('neu3dbutton')){
-        if (btn.style.display === "inline") {
-          btn.style.display = "none";
-        }else{
-          btn.style.display = "inline";
-        }
-      }
-    });
-
     controlPanel.open();
     
     return controlPanel;
