@@ -115,7 +115,7 @@ export function Stats() {
 
 Stats.Panel = function ( name, fg, bg ) {
 	let average = 0;
-	let alpha = 0.9;
+	let alpha = 0.0;
 	var min = Infinity, max = 0, round = Math.round;
 	var PR = round( window.devicePixelRatio || 1 );
 

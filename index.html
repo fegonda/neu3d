@@ -30,14 +30,16 @@
       $.getJSON("./data/data.json", function (json) {
         neu3d.addJson({
           ffbo_json: json,
-          showAfterLoadAll: true
-        });
-      });
+          showAfterLoadAll: true,
+          visibility: false,
+        }).then(function(e) {console.log(neu3d); setTimeout( function() {neu3d.resetOpacity(); neu3d.showMeshAll();}, 1500);});
+      })
+      
 
 
       $(document).ready(() => {
         neu3d.onWindowResize();
-        document.getElementById('neu3d-file-upload').click();
+        // document.getElementById('neu3d-file-upload').click(); // Disable the auto-click for debugging
       });
     </script>
   </body>

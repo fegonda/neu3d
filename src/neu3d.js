@@ -74,6 +74,8 @@ export class Neu3D {
           this._metadata[key] = metadata[key];
         }
       }
+    this.averageFPS = 60.0;
+    this.alphaFPS = 0.02;
     this.settings = new PropertyManager({
       defaultOpacity: 0.7,
       synapseOpacity: 1.0,
@@ -88,6 +90,8 @@ export class Neu3D {
       defaultSynapseRadius: 0.2,
       backgroundOpacity: 1.0,
       backgroundWireframeOpacity: 0.07,
+      oscillationSpeed: 0.01,
+      oscillationMode: false,
       neuron3d: false,
       neuron3dMode: 1,
       synapseMode: true,
@@ -232,7 +236,8 @@ export class Neu3D {
     }), 'backgroundColor');
 
     if (data != undefined && Object.keys(data).length > 0){
-      this.addJson(data);
+      this.addJson(data).then(function(e) {// this.resetOpacity();
+      });
     }
 
     this.animate();
@@ -280,7 +285,8 @@ export class Neu3D {
       this.appendChild(element);
       this.removeAttribute('title');
     });
-
+    
+    
   } // ENDOF Constructor
 
   /**
@@ -346,8 +352,8 @@ export class Neu3D {
     let f_vis = controlPanel.addFolder('Settings');
     let f0 = f_vis.addFolder('Display Mode');
     f0.add(this.settings, 'neuron3d').name("Enable 3D Mode");
-    f0.add(this.settings, 'neuron3dMode', [1, 2, 3]);
-    f0.add(this.settings, 'synapseMode');
+    f0.add(this.settings, 'neuron3dMode', [1, 2, 3]).name("3D Neuron Rendering Mode");
+    f0.add(this.settings, 'synapseMode').name("Show Synapses");
 
     let f1 = f_vis.addFolder('Visualization');
     f1.add(this.settings, 'meshWireframe').name("Display Wireframe");
@@ -363,13 +369,16 @@ export class Neu3D {
     f1_1.add(this.settings, 'highlightedObjectOpacity', 0.0, 1.0);
     f1_1.add(this.settings, 'backgroundOpacity', 0.0, 1.0);
     f1_1.add(this.settings, 'backgroundWireframeOpacity', 0.0, 1.0);
+    f1_1.add(this.settings, 'meshOscAmp', 0.0, 0.5, 0.01).name("Oscillation Amplitude");
+    f1_1.add(this.settings, 'oscillationSpeed', 0.0, 0.1, 0.001).name("Oscillation Speed");
+    f1_1.add(this.settings, 'oscillationMode').name("Enable Oscillation");
     
     let f1_2 = f1.addFolder('Advanced');
 
     f1_2.add(this.settings.toneMappingPass, 'brightness').name("ToneMap Brightness");
-    f1_2.add(this.settings.bloomPass, 'radius', 0.0, 10.0).name("BloomPass Radius");;
-    f1_2.add(this.settings.bloomPass, 'strength', 0.0, 1.0).name("BloomPass Strength");;
-    f1_2.add(this.settings.bloomPass, 'threshold', 0.0, 2.0).name("BloomPass Threshold");;
+    f1_2.add(this.settings.bloomPass, 'radius', 0.0, 10.0).name("Bloom Radius");;
+    f1_2.add(this.settings.bloomPass, 'strength', 0.0, 1.0).name("Bloom Strength");;
+    f1_2.add(this.settings.bloomPass, 'threshold', 0.0, 2.0).name("Bloom Threshold");;
     f1_2.add(this.settings.effectFXAA, 'enabled').name("FXAA");
     f1_2.add(this.settings.backrenderSSAO, 'enabled').name("SSAO");
 
@@ -464,33 +473,33 @@ export class Neu3D {
 
   updateResolution() {
     
-    if (this.stats.getFPS() < 30 && this.settings.render_resolution > 0.25) {
+    if (this.averageFPS < 30 && this.settings.render_resolution > 0.40) {
       this.settings.render_resolution = this.settings.render_resolution - 0.005;
-      if (this.settings.render_resolution < 0.25)
-        this.settings.render_resolution = 0.25;
+      if (this.settings.render_resolution < 0.40)
+        this.settings.render_resolution = 0.40;
       if (this.settings.backrenderSSAO.enabled == true)
-      this.highSettingsFPS = 1.0 + (1-1/this.stats.getFPS())*this.highSettingsFPS;
+      this.highSettingsFPS = 1.0 + (1-1/this.averageFPS)*this.highSettingsFPS;
     }
-    else if (this.stats.getFPS() > 58 && this.settings.render_resolution < 2.0) {
+    else if (this.averageFPS > 58 && this.settings.render_resolution < 2.0) {
       this.settings.render_resolution = this.settings.render_resolution + 0.005;
       if (this.settings.render_resolution > 2.0)
         this.settings.render_resolution = 2.0;
     }
-    else if (this.stats.getFPS() > 30 && this.settings.render_resolution < 1.0) {
+    else if (this.averageFPS > 30 && this.settings.render_resolution < 1.0) {
      this.settings.render_resolution = this.settings.render_resolution + 0.005;
      if (this.settings.render_resolution > 1.0)
        this.settings.render_resolution = 1.0;
    }
-   else if (this.stats.getFPS() > 30 && this.settings.render_resolution > 1.0) {
+   else if (this.averageFPS > 30 && this.settings.render_resolution > 1.0) {
      this.settings.render_resolution = this.settings.render_resolution - 0.005;
    }
-    if (this.stats.getFPS() > 58 && this.settings.render_resolution >= 1.95 && this.settings.backrenderSSAO.enabled == false && this.highSettingsFPS > 45)
+    if (this.averageFPS > 58 && this.settings.render_resolution >= 1.95 && this.settings.backrenderSSAO.enabled == false && this.highSettingsFPS > 45)
      this.settings.backrenderSSAO.enabled = true;
     else if (this.settings.render_resolution < 1.00)
      this.settings.backrenderSSAO.enabled = false;
 
 
-    if(this.settings.render_resolution != this.resINeed){
+    if (Math.abs(this.settings.render_resolution - this.resINeed)>0.05){
       //console.log("UPDATING");
       this.renderer.setPixelRatio(window.devicePixelRatio * this.settings.render_resolution);
       this.resINeed = this.settings.render_resolution;
@@ -498,10 +507,10 @@ export class Neu3D {
   }
 
   updateShaders(){
-    if(this.stats.getFPS() < 30 && this.settings.render_resolution > 0.25){
+    if(this.averageFPS < 30 && this.settings.render_resolution > 0.25){
       this.settings.effectFXAA.enabled = false;
       this.settings.backrenderSSAO.enabled = false;
-    }else if (this.stats.getFPS() > 50 && this.settings.render_resolution >= 1.95 && this.settings.backrenderSSAO.enabled == false && this.highSettingsFPS > 45){
+    }else if (this.averageFPS > 50 && this.settings.render_resolution >= 1.95 && this.settings.backrenderSSAO.enabled == false && this.highSettingsFPS > 45){
       this.settings.backrenderSSAO.enabled = true;
       this.settings.effectFXAA.enabled = true;
     }
@@ -838,6 +847,7 @@ export class Neu3D {
           continue;
         }
       }
+      
       resolve();
     });
   }
@@ -906,8 +916,10 @@ export class Neu3D {
   animate() {
     if (this.stats){
       this.stats.begin();
+      
     }
     this.controls.update(); // required if controls.enableDamping = true, or if controls.autoRotate = true
+    this.averageFPS = (1-this.alphaFPS)*this.averageFPS + this.alphaFPS*this.stats.getFPS();
     if (this.states.mouseOver && this.dispatch.syncControls){
       this.dispatch.syncControls(this);
       if(options['adaptive']){
@@ -1046,7 +1058,7 @@ export class Neu3D {
   
 
   /**
-   * Response to window resize 
+   * Response to window resize
    */
   onWindowResize() {
     let height = this.container.clientHeight;
@@ -1068,8 +1080,8 @@ export class Neu3D {
     this.camera.updateProjectionMatrix();
 
     this.renderer.setSize(width, height);
-    this.composer.setSize( width * window.devicePixelRatio,
-                           height * window.devicePixelRatio);
+    this.composer.setSize(width * window.devicePixelRatio,
+      height * window.devicePixelRatio);
     this.effectFXAA.uniforms['resolution'].value.set(1 / Math.max(width, 1440), 1 / Math.max(height, 900));
     this.controls.handleResize();
     this.render();
@@ -1082,32 +1094,60 @@ export class Neu3D {
   /**
    * Render 
    */
-  render() {
-    if (this.states.highlight){
+  directRender() {
+    if (this.states.highlight) {
       // do nothing
-    } else{
-      for (let key in this.meshDict) {
-        if (this.meshDict[key].object !== undefined) {
-          let x = new Date().getTime();
-          if (this.meshDict[key]['background']) {
-            let obj = this.meshDict[key].object.children;
-            if (this.meshDict[key]['opacity'] >= 0.00){
-              obj[0].material.opacity = this.meshDict[key]['opacity'] * (this.settings.backgroundOpacity + 0.5 * this.settings.meshOscAmp * (1 + Math.sin(x * .0005)));
-            }else{
-              obj[0].material.opacity = this.settings.backgroundOpacity + 0.5 * this.settings.meshOscAmp * (1 + Math.sin(x * .0005));
+    } else {
+        for (let key in this.meshDict) {
+
+          if (this.meshDict[key].object !== undefined) {
+            let x = new Date().getTime();
+            if (this.meshDict[key]['background']) {
+              let obj = this.meshDict[key].object.children;
+              if (this.meshDict[key]['opacity'] >= 0.00) {
+                obj[0].material.opacity = this.meshDict[key]['opacity'] * (this.settings.backgroundOpacity + 0.5 * this.settings.meshOscAmp * (1 + Math.sin(x * .0005)));
+              } else {
+                obj[0].material.opacity = this.settings.backgroundOpacity + 0.5 * this.settings.meshOscAmp * (1 + Math.sin(x * this.settings.oscillationSpeed));
+                obj[1].material.opacity = this.settings.backgroundWireframeOpacity;
+              }
+              obj[0].material.opacity = this.settings.backgroundOpacity + 0.5 * this.settings.meshOscAmp * (1 + Math.sin(x * this.settings.oscillationSpeed));
               obj[1].material.opacity = this.settings.backgroundWireframeOpacity;
+            } 
+            else {
+              //TODO: check what this else loop does
             }
-            
-            
-            obj[0].material.opacity = this.settings.backgroundOpacity + 0.5 * this.settings.meshOscAmp * (1 + Math.sin(x * .0005));
-            obj[1].material.opacity = this.settings.backgroundWireframeOpacity;
-          } else {
-            //TODO: check what this else loop does
+          }
+        }
+    }
+  }
+
+  render() {
+    if (this.states.highlight) {
+      // do nothing
+    } else {
+      if (this.settings.oscillationMode == true) {
+        for (let key in this.meshDict) {
+
+          if (this.meshDict[key].object !== undefined) {
+            let x = new Date().getTime();
+            if (this.meshDict[key]['background']) {
+              let obj = this.meshDict[key].object.children;
+              if (this.meshDict[key]['opacity'] >= 0.00) {
+                obj[0].material.opacity = this.meshDict[key]['opacity'] * (this.settings.backgroundOpacity + 0.5 * this.settings.meshOscAmp * (1 + Math.sin(x * .0005)));
+              } else {
+                obj[0].material.opacity = this.settings.backgroundOpacity + 0.5 * this.settings.meshOscAmp * (1 + Math.sin(x * this.settings.oscillationSpeed));
+                obj[1].material.opacity = this.settings.backgroundWireframeOpacity;
+              }
+              obj[0].material.opacity = this.settings.backgroundOpacity + 0.5 * this.settings.meshOscAmp * (1 + Math.sin(x * this.settings.oscillationSpeed));
+              obj[1].material.opacity = this.settings.backgroundWireframeOpacity;
+            } 
+            else {
+              //TODO: check what this else loop does
+            }
           }
         }
       }
     }
-
     /*
     * show label of mesh object when it intersects with cursor
     */
@@ -1310,6 +1350,12 @@ export class Neu3D {
     if (key in this.meshDict)
       this.meshDict[key].visibility = !this.meshDict[key].visibility;
   }
+
+  showMeshAll() {
+    for (var key in this.meshDict)
+      this.meshDict[key]['object'].visible = true;
+  }
+
 
   /** TODO: Add Comment
    * 
